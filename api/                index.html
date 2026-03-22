@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pluviômetro Online</title>
+    
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#2e7d32">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+    <style>
+        :root { 
+            --primary: #2e7d32; 
+            --accent: #66bb6a; 
+            --dark: #0a1a0a; 
+            --card: #152a15; 
+            --text: #e0e0e0; 
+            --rain-blue: #add8e6; 
+            --cloud-blue: #1a73e8;
+        }
+        
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            background: #0a1a0a; 
+            color: var(--text); 
+            margin: 0; 
+            padding-bottom: 20px; 
+            overflow-x: hidden; 
+        }
+        
+        header { 
+            padding: 18px; 
+            text-align: center; 
+            background: rgba(0,0,0,0.6); 
+            border-bottom: 3px solid var(--primary);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+        header h2 { margin: 0; font-size: 20px; letter-spacing: 2px; color: #fff; text-transform: uppercase; }
+
+        .container { max-width: 600px; margin: auto; padding: 10px; display: none; }
+        .card { background: var(--card); padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid rgba(255,255,255,0.05); }
+        h3 { color: var(--accent); margin-top: 0; font-size: 14px; text-transform: uppercase; letter-spacing: 1px; }
+        
+        .input-group { display: grid; grid-template-columns: 1.2fr 1fr; gap: 8px; }
+        input { background: #000; color: white; border: 1px solid #333; padding: 12px; border-radius: 8px; font-size: 16px; width: 100%; box-sizing: border-box; }
+        
+        button { cursor: pointer; font-weight: bold; border: none; border-radius: 8px; transition: 0.3s; }
+        .btn-main { 
+            background: linear-gradient(to right, var(--primary), var(--accent)); 
+            color: white; padding: 14px; width: 100%; margin-top: 10px; 
+        }
+        .btn-cloud {
+            background: var(--cloud-blue);
+            color: white; padding: 12px; width: 100%; margin-top: 8px;
+            display: flex; align-items: center; justify-content: center; gap: 8px;
+        }
+        
+        .last-entry-card { 
+            display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.03); 
+            padding: 10px; border-radius: 8px; margin-top: 10px; border-left: 4px solid #ff5252; 
+        }
+        .btn-del { background: #ff5252; color: white; padding: 6px 12px; border-radius: 5px; font-size: 12px; }
+        
+        .stats-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 15px; }
+        .stat-box { background: rgba(0,0,0,0.3); padding: 10px; border-radius: 8px; text-align: center; border: 1px solid #222; }
+        .stat-box small { font-size: 10px; color: #888; text-transform: uppercase; }
+        .stat-box b { display: block; font-size: 18px; color: var(--accent); }
+        
+        .mes-labels { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; margin-top: 10px; font-size: 9px; text-align: center; }
+        .mes-box { background: rgba(0,0,0,0.3); padding: 4px; border-radius: 4px; border: 1px solid #222; }
+        
+        footer { text-align: center; font-size: 11px; opacity: 0.5; margin-top: 10px; padding: 10px; }
+
+        /* SPLASH SCREEN */
+        #splash-screen {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: linear-gradient(to bottom, #0a1a0a, #000);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 9999; color: white; text-align: center;
+            transition: opacity 0.8s ease; overflow: hidden;
+        }
+        .rain-container { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+        .drop { position: absolute; background: var(--rain-blue); width: 2px; height: 15px; opacity: 0.5; animation: fall linear infinite; }
+        @keyframes fall { to { transform: translateY(100vh); } }
+        
+        #splash-screen h1 { font-size: 26px; color: #fff; margin: 0; text-transform: uppercase; letter-spacing: 3px; z-index: 10; }
+        #splash-screen p { font-size: 14px; color: var(--accent); margin-top: 8px; z-index: 10; }
+        .loader-bar { width: 180px; height: 3px; background: rgba(255,255,255,0.1); margin-top: 25px; border-radius: 10px; overflow: hidden; z-index: 10; }
+        .loader-fill { width: 0%; height: 100%; background: var(--accent); animation: fill-bar 2s forwards ease-in-out; }
+        @keyframes fill-bar { to { width: 100%; } }
+    </style>
+</head>
+<body>
+
+<div id="splash-screen">
+    <div class="rain-container" id="rainContainer"></div>
+    <h1>Pluviômetro Online</h1>
+    <p>Desenvolvido por João Divino Barbosa</p>
+    <div class="loader-bar"><div class="loader-fill"></div></div>
+</div>
+
+<header><h2>PLUVIÔMETRO ONLINE</h2></header>
+
+<div class="container" id="app-container">
+    <div class="card">
+        <h3>Novo Registro</h3>
+        <div class="input-group">
+            <input type="date" id="dataChuva">
+            <input type="number" id="valorChuva" placeholder="Chuva mm" inputmode="decimal">
+        </div>
+        <button class="btn-main" onclick="lancar()">REGISTRAR AGORA</button>
+        
+        <button class="btn-cloud" id="btnSync" onclick="sincronizarVercel()">
+            <span>☁️</span> SINCRONIZAR COM NUVEM (VERCEL)
+        </button>
+
+        <div id="containerUltimo"></div>
+    </div>
+
+    <div class="card">
+        <h3>Evolução Diária (Picos)</h3>
+        <div class="stats-row">
+            <div class="stat-box"><small>Total Mês</small><b id="totalMes">0 mm</b></div>
+            <div class="stat-box"><small>Maior Pico</small><b id="picoMes">0 mm</b></div>
+        </div>
+        <div style="height: 220px;"><canvas id="chartMensalDiario"></canvas></div>
+    </div>
+
+    <div class="card">
+        <h3>Acumulado Mensal</h3>
+        <canvas id="chartAnual"></canvas>
+        <div id="labelsFechamento" class="mes-labels"></div>
+    </div>
+
+    <footer>Pluviômetro Online &copy; 2026<br>João Divino Barbosa</footer>
+</div>
+
+<script>
+    // Gerador de Chuva Azul do Splash
+    function createRain() {
+        const container = document.getElementById('rainContainer');
+        for (let i = 0; i < 70; i++) {
+            const drop = document.createElement('div');
+            drop.className = 'drop';
+            drop.style.left = Math.random() * 100 + 'vw';
+            drop.style.animationDuration = (Math.random() * 0.5 + 0.5) + 's';
+            drop.style.animationDelay = Math.random() * 2 + 's';
+            container.appendChild(drop);
+        }
+    }
+
+    // Splash Screen e Inicialização
+    window.addEventListener('load', () => {
+        createRain();
+        document.getElementById("dataChuva").valueAsDate = new Date(); // Data de hoje padrão
+        setTimeout(() => {
+            const splash = document.getElementById('splash-screen');
+            splash.style.opacity = '0';
+            setTimeout(() => {
+                splash.style.display = 'none';
+                document.getElementById('app-container').style.display = 'block';
+                atualizarUI(); 
+            }, 800); 
+        }, 2200); 
+    });
+
+    const STORAGE_KEY = "pluviometro_v10_fixo";
+    let registros = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    let chartAnual, chartMensal;
+    const nomesMeses = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    
+    function salvarLocal() {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(registros));
+    }
+
+    function lancar() {
+        const data = document.getElementById("dataChuva").value;
+        const valor = parseFloat(document.getElementById("valorChuva").value);
+        if(!data || isNaN(valor)) return;
+        
+        registros.push({ data, valor, timestamp: Date.now() });
+        registros.sort((a, b) => new Date(a.data) - new Date(b.data));
+        document.getElementById("valorChuva").value = "";
+        
+        salvarLocal();
+        atualizarUI();
+    }
+
+    // NOVA FUNÇÃO: SINCRONIZAÇÃO COM VERCEL KV
+    async function sincronizarVercel() {
+        const btn = document.getElementById("btnSync");
+        const originalText = btn.innerHTML;
+        
+        if (registros.length === 0) {
+            alert("Não há dados para sincronizar.");
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = "<span>⏳</span> SINCRONIZANDO...";
+
+        try {
+            // Chama a API que você criou na pasta /api/salvar.js da Vercel
+            const response = await fetch('/api/salvar', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(registros)
+            });
+
+            if (response.ok) {
+                alert("Dados protegidos na nuvem da Vercel!");
+            } else {
+                throw new Error("Falha na resposta do servidor");
+            }
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao sincronizar. Verifique sua conexão ou se a API da Vercel está ativa.");
+        } finally {
+            btn.disabled = false;
+            btn.innerHTML = originalText;
+        }
+    }
+
+    function excluirUltimo() {
+        if(confirm("Apagar o último lançamento realizado?")) {
+            registros.sort((a, b) => a.timestamp - b.timestamp);
+            registros.pop();
+            registros.sort((a, b) => new Date(a.data) - new Date(b.data));
+            salvarLocal();
+            atualizarUI();
+        }
+    }
+
+    function atualizarUI() {
+        const agora = new Date();
+        const mesAtual = agora.getMonth();
+        const anoAtual = agora.getFullYear();
+        let totaisMeses = new Array(12).fill(0);
+        let labelsDias = []; 
+        let chuvasDoMes = []; 
+        let maiorPico = 0;
+
+        registros.forEach(r => {
+            const d = new Date(r.data + 'T00:00:00');
+            if(d.getFullYear() === anoAtual) totaisMeses[d.getMonth()] += r.valor;
+        });
+
+        const containerUltimo = document.getElementById("containerUltimo");
+        if(registros.length > 0) {
+            const ultimo = registros.reduce((prev, current) => (prev.timestamp > current.timestamp) ? prev : current);
+            const dataFmt = new Date(ultimo.data + 'T00:00:00').toLocaleDateString('pt-BR');
+            containerUltimo.innerHTML = `<div class="last-entry-card"><span><b>Último:</b> ${dataFmt} - ${ultimo.valor} mm</span><button class="btn-del" onclick="excluirUltimo()">APAGAR</button></div>`;
+        } else {
+            containerUltimo.innerHTML = '';
+        }
+
+        document.getElementById("labelsFechamento").innerHTML = totaisMeses.map((v, i) => 
+            `<div class="mes-box"><span>${nomesMeses[i]}</span><span style="display:block;color:var(--accent);font-weight:bold">${Math.round(v)}</span></div>`
+        ).join('');
+
+        const ultimoDiaMes = new Date(anoAtual, mesAtual + 1, 0).getDate();
+        let totalMes = 0;
+        for(let dia = 1; dia <= ultimoDiaMes; dia++) {
+            const dataStr = `${anoAtual}-${String(mesAtual + 1).padStart(2, '0')}-${String(dia).padStart(2, '0')}`;
+            const regsDia = registros.filter(r => r.data === dataStr);
+            const valor = regsDia.reduce((acc, curr) => acc + curr.valor, 0);
+            labelsDias.push(dia); 
+            chuvasDoMes.push(valor);
+            if(valor > maiorPico) maiorPico = valor;
+            totalMes += valor;
+        }
+
+        document.getElementById("totalMes").innerText = totalMes.toFixed(1) + " mm";
+        document.getElementById("picoMes").innerText = maiorPico.toFixed(1) + " mm";
+        renderizarGraficos(totaisMeses, labelsDias, chuvasDoMes);
+    }
+
+    function renderizarGraficos(dA, lD, dM) {
+        if(chartAnual) chartAnual.destroy();
+        chartAnual = new Chart(document.getElementById('chartAnual').getContext('2d'), {
+            type: 'bar',
+            data: { labels: nomesMeses, datasets: [{ data: dA, backgroundColor: '#2e7d32' }] },
+            options: { plugins: { legend: false, datalabels: { display: false } }, scales: { y: { beginAtZero: true, grid: { color: '#222' } } } }
+        });
+
+        if(chartMensal) chartMensal.destroy();
+        chartMensal = new Chart(document.getElementById('chartMensalDiario').getContext('2d'), {
+            type: 'line',
+            data: { labels: lD, datasets: [{ data: dM, borderColor: '#66bb6a', backgroundColor: 'rgba(102, 187, 106, 0.2)', fill: true, tension: 0.4, pointRadius: 4, pointBackgroundColor: '#fff' }] },
+            options: { responsive: true, maintainAspectRatio: false, plugins: { legend: false, datalabels: { align: 'top', anchor: 'end', color: '#fff', font: { weight: 'bold', size: 10 }, formatter: (val) => val > 0 ? val + 'mm' : '' } }, scales: { y: { beginAtZero: true, grid: { color: '#222' } }, x: { grid: { display: false } } } }
+        });
+    }
+
+    if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js');
+    }
+</script>
+</body>
+</html>
